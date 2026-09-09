@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+backups/
+.test-output/
+*.upk
+*.exe
+*.sav
+*.db
+*.bak
+*.tmp
+*.pending
