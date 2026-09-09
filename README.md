@@ -1,6 +1,8 @@
 # LET IT DIE M2G 나이프 전용 모드
 
-**0.1.0 시험판 · Steam 오프라인 5.0.2.0 / 빌드 25136512 기준 · 실게임 검증 전**
+**1.0.0 정식 버전 · Steam 오프라인 5.0.2.0 / 빌드 25136512 기준**
+
+2026-09-10 사용자가 실게임 테스트를 완료하고 정상 작동을 확인했습니다. 검증한 패치 동작은 그대로 유지하고 정식 배포 문구와 버전을 반영했습니다. 모든 무기·잔탄·타사 패치 조합을 전수 검증했다는 의미는 아닙니다.
 
 세이브 멀티툴과 독립된 로컬 패치 도구입니다. 게임 원본 파일을 포함하지 않습니다.
 
@@ -9,7 +11,7 @@
 - 플레이어가 M2G 일반 사격을 실행하면 조준 여부와 무관하게 나이프 공격 타입 2와 기존 나이프 발사 애니메이션을 사용합니다. 일반/FireFly의 기존 무기 속성 분기는 유지합니다.
 - 마지막 발사 탄종 기록에는 기존 게임의 무탄종 표식 6을 사용합니다. 동일 탄종 연속 발사 제한에 걸리지 않도록 하되, 공통 발사 가능 검사 자체는 변경하지 않습니다.
 - 비플레이어는 원래 PlayShot 코드로 분기합니다. 레드 네이팜 등 AI 동작, 레이지 무브, 무기 파손·탄약·재장전 검사, 피해 DB는 변경하지 않습니다.
-- **조준 룰렛 그림은 여전히 회전합니다. 실제 발사만 나이프로 고정하는 시험판**입니다. 레이지 공격까지 나이프로 바꾸는 모드는 아닙니다.
+- **조준 룰렛 그림은 여전히 회전하며 실제 발사만 나이프로 고정**합니다. 레이지 공격까지 나이프로 바꾸는 모드는 아닙니다.
 - 나이프 피해 2배 보정은 별도 세이브 멀티툴 v5.9.0의 33번을 사용하세요. 이 도구는 DB와 세이브를 수정하지 않습니다.
 
 ## 설치 / 실행
@@ -17,10 +19,10 @@
 Windows, Python 3.10 이상이 필요합니다. Python 설치 후 **setup.bat을 한 번 실행**하거나 이 폴더에서 `python -m pip install -r requirements.txt`로 의존성을 설치하세요. `run.bat` 실행 또는 아래 명령을 사용합니다. 파일 접근 거부 시 관리자 권한 터미널을 사용하세요.
 
 ```powershell
-python tool.py status --game "C:\Program Files (x86)\Steam\steamapps\common\LET IT DIE"
-python tool.py trial --game "게임 설치 폴더" --output "새 검증 출력 폴더"
-python tool.py apply --game "게임 설치 폴더"
-python tool.py restore --game "게임 설치 폴더"
+.\.venv\Scripts\python.exe tool.py status --game "C:\Program Files (x86)\Steam\steamapps\common\LET IT DIE"
+.\.venv\Scripts\python.exe tool.py trial --game "게임 설치 폴더" --output "새 검증 출력 폴더"
+.\.venv\Scripts\python.exe tool.py apply --game "게임 설치 폴더"
+.\.venv\Scripts\python.exe tool.py restore --game "게임 설치 폴더"
 ```
 
 `trial`은 출력 복사본만 생성하고 게임을 건드리지 않습니다. `apply`와 `restore`는 게임 실행 중 차단합니다. 적용 전 UPK·EXE 전체 백업을 이 도구의 `backups/`에 만듭니다. 백업 폴더를 보관하세요.
@@ -35,6 +37,6 @@ python tool.py restore --game "게임 설치 폴더"
 
 현재 빌드의 함수 해시와 export 위치를 확인하고, 일치하지 않는 버전은 중단합니다. 새 함수는 직렬화된 바이트 길이와 64비트 실행 시 스크립트 길이를 따로 계산합니다. 원본 AI 분기의 점프 주소도 추가 코드 길이만큼 조정합니다. 원본 export·패키지 데이터의 불필요한 재작성 없이 변경 청크를 추가하고 실행 파일의 BrgGame SHA-1 연결 2개만 갱신합니다.
 
-자동 테스트: `python -m unittest discover -s tests -v`
+자동 테스트: `.\.venv\Scripts\python.exe -m unittest discover -s tests -v`
 
-실게임 확인 항목: 일반/FireFly, 조준·비조준 연속 사격, 남은 탄약이 적을 때, 탄약 소진·재장전·무기 교체, AI M2G 상대, 저스트가드와 워프 병용. 검증 전에는 시험판으로 취급하세요.
+단위 테스트 10개, 게임 복사본 적용·복원, 286개 청크 비교와 사용자 실게임 정상 작동 확인을 거쳐 정식 버전으로 배포합니다. 자세한 범위는 [검증 기록](TESTING.md)을 참고하세요. 다른 게임 빌드나 새로운 패치 조합에서는 호환성을 다시 확인해야 합니다.

@@ -1,4 +1,4 @@
-"""LET IT DIE M2G player knife-only prototype; local offline game only."""
+"""LET IT DIE M2G player knife-only mode; local offline game only."""
 import argparse
 import json
 import os
@@ -11,6 +11,7 @@ import uuid
 from package_patch import build, link_executable, sha
 
 ROOT = Path(__file__).resolve().parent
+VERSION = '1.0.0'
 FILES = {'upk': 'BrgGame/CookedPCConsole/BrgGame.upk', 'exe': 'Binaries/Win64/BrgGame-Steam.exe'}
 
 
@@ -154,7 +155,8 @@ def detect_game():
 
 
 def main():
-    parser = argparse.ArgumentParser(description='M2G 플레이어 나이프 전용 모드 0.1.0 시험판')
+    parser = argparse.ArgumentParser(description=f'M2G 플레이어 나이프 전용 모드 {VERSION} 정식 버전')
+    parser.add_argument('--version', action='version', version=VERSION)
     parser.add_argument('command', nargs='?', choices=['status', 'trial', 'apply', 'restore'])
     parser.add_argument('--game', type=Path)
     parser.add_argument('--output', type=Path)
@@ -169,9 +171,9 @@ def main():
     command = args.command
     backup_root = ROOT / 'backups'
     if command is None:
-        print(f'\nM2G 나이프 전용 시험판 0.1.0\n게임: {game}')
+        print(f'\nM2G 나이프 전용 모드 {VERSION}\n게임: {game}')
         print('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.')
-        print('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다. 실게임 미검증.')
+        print('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다. 사용자 실게임 정상 작동 확인.')
         print('다른 UPK 패치 도구는 이 모드를 먼저 복원한 뒤 사용하세요.')
         print('1. 상태 확인\n2. 적용\n3. 전용 백업으로 복원\n0. 종료')
         choice = input('선택: ').strip()
@@ -184,7 +186,7 @@ def main():
         current = hashes(read_pair(game))
         active = any(record['after'] == current for _, record in records(game, backup_root))
         if active:
-            print('나이프 전용 적용됨. 실게임 검증은 별도입니다.')
+            print('나이프 전용 적용됨. 사용자 실게임 정상 작동 확인 버전입니다.')
         else:
             build_pair(read_pair(game))
             print('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.')
@@ -201,7 +203,7 @@ def main():
             raise ValueError('검증 중 원본이 변경됐습니다.')
         print(f'복사본 생성 완료: {output}\n원본 게임은 변경하지 않았습니다.')
     else:
-        if not args.yes and input('게임 종료 후 실행하세요. 시험판 '+command+' 진행? (y/N): ').lower() not in ('y', 'yes'):
+        if not args.yes and input('게임 종료 후 실행하세요. '+command+' 진행? (y/N): ').lower() not in ('y', 'yes'):
             return
         folder = apply(game, backup_root) if command == 'apply' else restore(game, backup_root)
         print(f'{command} 완료. 백업: {folder}')
