@@ -1,8 +1,8 @@
 # LET IT DIE M2G 나이프 전용 모드
 
-**1.0.0 정식 버전 · Steam 오프라인 5.0.2.0 / 빌드 25136512 기준**
+**1.1.0 · Node.js 전용 · Steam 오프라인 5.0.2.0 / 빌드 25136512 기준**
 
-2026-09-10 사용자가 실게임 테스트를 완료하고 정상 작동을 확인했습니다. 검증한 패치 동작은 그대로 유지하고 정식 배포 문구와 버전을 반영했습니다. 모든 무기·잔탄·타사 패치 조합을 전수 검증했다는 의미는 아닙니다.
+2026-09-10 사용자가 1.0.0의 실게임 정상 작동을 확인했습니다. 1.1.0에서는 같은 나이프 패치 코드를 생성하도록 실행 환경을 Node.js로 통일했습니다. 모든 무기·잔탄·타사 패치 조합을 전수 검증했다는 의미는 아닙니다.
 
 세이브 멀티툴과 독립된 로컬 패치 도구입니다. 게임 원본 파일을 포함하지 않습니다.
 
@@ -16,16 +16,26 @@
 
 ## 설치 / 실행
 
-Windows, Python 3.10 이상이 필요합니다. Python 설치 후 **setup.bat을 한 번 실행**하거나 이 폴더에서 `python -m pip install -r requirements.txt`로 의존성을 설치하세요. `run.bat` 실행 또는 아래 명령을 사용합니다. 파일 접근 거부 시 관리자 권한 터미널을 사용하세요.
+**Windows + Node.js 22 이상만 필요합니다.** 기존 멀티툴·워프·저스트가드 도구를 사용하는 환경처럼 **압축을 풀고 `run.bat`을 실행**하세요.
+
+- Python, pip, 가상환경, `npm install`은 필요하지 않습니다.
+- 압축 처리용 순수 JavaScript 코드는 `vendor/`에 포함되어 있습니다. `vendor/`를 빼거나 파일 하나만 옮기지 말고 폴더 전체를 사용하세요.
+- `setup.bat`을 눌러도 별도 설치 없이 `run.bat`으로 연결됩니다.
+- Steam 설치 경로를 자동 탐색하며, 못 찾으면 게임 설치 폴더를 직접 입력합니다.
+- 파일 접근 거부 시 관리자 권한 터미널을 사용하세요.
 
 ```powershell
-.\.venv\Scripts\python.exe tool.py status --game "C:\Program Files (x86)\Steam\steamapps\common\LET IT DIE"
-.\.venv\Scripts\python.exe tool.py trial --game "게임 설치 폴더" --output "새 검증 출력 폴더"
-.\.venv\Scripts\python.exe tool.py apply --game "게임 설치 폴더"
-.\.venv\Scripts\python.exe tool.py restore --game "게임 설치 폴더"
+node tool.js status --game "C:\Program Files (x86)\Steam\steamapps\common\LET IT DIE"
+node tool.js trial --game "게임 설치 폴더" --output "새 검증 출력 폴더"
+node tool.js apply --game "게임 설치 폴더"
+node tool.js restore --game "게임 설치 폴더"
 ```
 
 `trial`은 출력 복사본만 생성하고 게임을 건드리지 않습니다. `apply`와 `restore`는 게임 실행 중 차단합니다. 적용 전 UPK·EXE 전체 백업을 이 도구의 `backups/`에 만듭니다. 백업 폴더를 보관하세요.
+
+### 1.0.0에서 업데이트할 때
+
+기존 도구의 **`backups/` 폴더를 새 도구 폴더에 그대로 옮기세요.** Python 버전에서 적용한 상태도 인식하고, 같은 전용 백업으로 복원할 수 있습니다. 실행 환경만 바뀌었으므로 이미 정상 적용한 모드를 다시 적용할 필요는 없습니다. 이전 `.venv`는 더 이상 사용하지 않습니다.
 
 ## 기존 패치와 함께 사용
 
@@ -37,6 +47,8 @@ Windows, Python 3.10 이상이 필요합니다. Python 설치 후 **setup.bat을
 
 현재 빌드의 함수 해시와 export 위치를 확인하고, 일치하지 않는 버전은 중단합니다. 새 함수는 직렬화된 바이트 길이와 64비트 실행 시 스크립트 길이를 따로 계산합니다. 원본 AI 분기의 점프 주소도 추가 코드 길이만큼 조정합니다. 원본 export·패키지 데이터의 불필요한 재작성 없이 변경 청크를 추가하고 실행 파일의 BrgGame SHA-1 연결 2개만 갱신합니다.
 
-자동 테스트: `.\.venv\Scripts\python.exe -m unittest discover -s tests -v`
+자동 테스트: `npm test` 또는 `node --test tests/*.test.js` (패키지 설치 불필요)
 
-단위 테스트 10개, 게임 복사본 적용·복원, 286개 청크 비교와 사용자 실게임 정상 작동 확인을 거쳐 정식 버전으로 배포합니다. 자세한 범위는 [검증 기록](TESTING.md)을 참고하세요. 다른 게임 빌드나 새로운 패치 조합에서는 호환성을 다시 확인해야 합니다.
+Node.js 단위 테스트, 게임 복사본 적용·복원, 286개 청크 비교를 수행합니다. 기존 Python/lzokay 검사기로도 새 패키지를 독립 검증합니다. 압축 방식 차이로 UPK 전체 해시는 달라질 수 있지만, 압축을 푼 패치 내용은 기존 버전과 같습니다. 자세한 확인 결과와 실게임 테스트 범위는 [검증 기록](TESTING.md)을 참고하세요. 다른 게임 빌드나 새로운 패치 조합에서는 호환성을 다시 확인해야 합니다.
+
+`dev/python-reference/`는 개발자가 비교 검증할 때만 사용하는 이전 구현입니다. 도구 실행에는 사용하지 않습니다. 포함된 압축 코드의 출처와 MIT 라이선스는 [vendor 안내](vendor/README.md)에 있습니다.

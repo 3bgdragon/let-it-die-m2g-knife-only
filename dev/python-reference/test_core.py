@@ -1,3 +1,4 @@
+"""Archived v1.0.0 tests; production tests are ../../tests/core.test.js."""
 import json
 from pathlib import Path
 import struct

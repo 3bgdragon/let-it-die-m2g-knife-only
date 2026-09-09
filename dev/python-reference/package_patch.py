@@ -1,4 +1,4 @@
-"""Build-specific, logical UPK patch. Contains no shipped game payload."""
+"""Developer-only v1.0.0 reference. Not a production runtime dependency."""
 import hashlib
 import math
 import struct

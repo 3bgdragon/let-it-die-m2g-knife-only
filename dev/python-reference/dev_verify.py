@@ -1,4 +1,4 @@
-"""Read-only comparison against an installed game; analysis outputs are local."""
+"""Developer-only independent Python/lzokay oracle for Node-generated packages."""
 import argparse
 import json
 import struct

@@ -1,4 +1,6 @@
-"""Small fail-closed UE3 decoder for the exact instructions used by this patch.
+"""Developer-only v1.0.0 reference; NOT used by the Node.js runtime.
+
+Small fail-closed UE3 decoder for the exact instructions used by this patch.
 
 Serialized object references are 4 bytes, runtime references are 8 bytes.
 Jump targets use runtime positions, not serialized byte offsets.

@@ -1,4 +1,4 @@
-"""LET IT DIE M2G player knife-only mode; local offline game only."""
+"""Developer-only v1.0.0 transaction reference; users should run ../../run.bat."""
 import argparse
 import json
 import os

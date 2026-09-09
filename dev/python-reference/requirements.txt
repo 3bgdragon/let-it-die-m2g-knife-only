@@ -1,0 +1,2 @@
+# Optional developer oracle only. End users need Node.js, not Python/pip.
+lzokay==2.1.0
