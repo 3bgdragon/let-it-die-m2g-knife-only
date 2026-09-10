@@ -163,12 +163,23 @@ test('status validates EXE linkage even for a matching historical backup', () =>
 });
 test('known status combinations cover four guard settings with and without warp', () => {
   const { profiles } = require('../known-combinations.json');
-  assert.equal(profiles.length, 8); assert.equal(new Set(profiles.map(p => p.sha256)).size, 8);
+  assert.equal(profiles.length, 16); assert.equal(new Set(profiles.map(p => p.sha256)).size, 16);
   for (const guard of ['off-off', 'off-on', 'on-off', 'on-on']) {
-    assert.equal(profiles.filter(p => p.guard === guard && p.warp).length, 1);
-    assert.equal(profiles.filter(p => p.guard === guard && !p.warp).length, 1);
+    assert.equal(profiles.filter(p => p.guard === guard && p.warp).length, 2);
+    assert.equal(profiles.filter(p => p.guard === guard && !p.warp).length, 2);
   }
   profiles.forEach(p => assert.match(p.sha256, /^[a-f0-9]{64}$/));
+});
+test('selective removal rejects unknown input before creating backups', ctx => {
+  const f=fixture(ctx);
+  assert.throws(()=>t.remove(f.game,f.backups,f.options),/지원하지 않는 M2G/);
+  assert.deepEqual(t.readPair(f.game),f.before);
+  assert.equal(fs.existsSync(f.backups),false);
+});
+test('removal backup cannot classify an unpatched package as applied', () => {
+  const upk=Buffer.from('unknown base'),entry=Buffer.concat([Buffer.from('brggame.upk\0'),createHash('sha1').update(upk).digest()]);
+  const pair={upk,exe:Buffer.concat([Buffer.from('MZ'),entry,entry])};
+  assert.throws(()=>t.inspectStatus(pair,[{record:{state:'applied',operation:'remove',after:t.hashes(pair)}}]));
 });
 test('Windows run.bat and legacy setup.bat launch Node without Python', { skip: process.platform !== 'win32' }, () => {
   for (const name of ['run.bat', 'setup.bat']) {

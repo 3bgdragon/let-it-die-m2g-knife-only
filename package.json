@@ -1,6 +1,6 @@
 {
   "name": "let-it-die-m2g-knife-only",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "Offline LET IT DIE player M2G knife-only patch; Node.js-only runtime",
   "license": "MIT",

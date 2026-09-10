@@ -6,7 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { parseArgs } = require('node:util');
 const patch = require('./package-patch');
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 const knownCombinations = require('./known-combinations.json').profiles;
 const FILES = { upk: 'BrgGame/CookedPCConsole/BrgGame.upk', exe: 'Binaries/Win64/BrgGame-Steam.exe' };
 const keys = Object.keys(FILES);
@@ -22,12 +22,22 @@ function buildPair(pair) {
   const upk = patch.build(pair.upk);
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
 }
+function removePatchPair(pair) {
+  const profile = knownCombinations.find(p => p.sha256 === patch.sha(pair.upk));
+  if (!profile) throw new Error('지원하지 않는 M2G 파일입니다. 선택 제거하지 않고 중단합니다.');
+  const upk = Buffer.from(pair.upk.subarray(0, profile.baseSize));
+  for (const entry of profile.directory) Buffer.from(entry.hex, 'hex').copy(upk, entry.offset);
+  if (patch.sha(upk) !== profile.baseSha256) throw new Error('M2G 제거 후 패키지 검증 실패');
+  // Preserve the current EXE, including current warp/native changes. Update
+  // only M2G's two UPK digests, after validating both old links.
+  return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
+}
 function inspectStatus(pair, backupRecords = []) {
   // Read-only recognition: do not relax restore's exact-backup checks.
   // A known UPK still needs a valid two-entry EXE manifest link.
   patch.linkExecutable(pair.exe, pair.upk, pair.upk);
   const current = hashes(pair);
-  const exactBackup = backupRecords.some(({ record }) => record.state !== 'restored' && sameHashes(record.after, current));
+  const exactBackup = backupRecords.some(({ record }) => record.state !== 'restored' && record.operation !== 'remove' && sameHashes(record.after, current));
   const combination = knownCombinations.find(p => p.sha256 === current.upk);
   if (exactBackup || combination) return { applied: true, exactBackup, combination: combination || null };
   buildPair(pair);
@@ -74,7 +84,7 @@ function replacePair(game, before, after, { running = gameRunning, replace = fs.
     for (const file of Object.values(staged)) if (fs.existsSync(file)) fs.unlinkSync(file);
   }
 }
-function apply(game, backupRoot, { running = gameRunning, builder = buildPair } = {}) {
+function apply(game, backupRoot, { running = gameRunning, builder = buildPair, operation = 'apply' } = {}) {
   if (running()) throw new Error('게임을 완전히 종료하세요.');
   const before = readPair(game), after = builder(before);
   const now = new Date(), pad = n => String(n).padStart(2, '0');
@@ -87,11 +97,14 @@ function apply(game, backupRoot, { running = gameRunning, builder = buildPair } 
     writeExclusive(file, before[key]);
     if (patch.sha(fs.readFileSync(file)) !== patch.sha(before[key])) throw new Error('백업 검증 실패');
   }
-  const record = { version: 1, game: path.resolve(game), state: 'prepared', before: hashes(before), after: hashes(after) };
+  const record = { version: 1, game: path.resolve(game), operation, state: 'prepared', before: hashes(before), after: hashes(after) };
   saveRecord(folder, record);
   replacePair(game, before, after, { running });
   record.state = 'applied'; saveRecord(folder, record);
   return folder;
+}
+function remove(game, backupRoot, { running = gameRunning } = {}) {
+  return apply(game, backupRoot, { running, builder: removePatchPair, operation: 'remove' });
 }
 const canonical = value => path.resolve(value).toLowerCase();
 function records(game, backupRoot) {
@@ -113,7 +126,7 @@ function restore(game, backupRoot, { running = gameRunning } = {}) {
   const current = readPair(game), currentHashes = hashes(current);
   for (const { folder, record } of records(game, backupRoot)) {
     if (record.state === 'restored') continue;
-    if (!keys.every(k => [record.before[k], record.after[k]].includes(currentHashes[k]))) throw new Error('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다.');
+    if (!keys.every(k => [record.before[k], record.after[k]].includes(currentHashes[k]))) throw new Error('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다. M2G만 없애려면 메뉴 4번 M2G만 제거 또는 remove 명령을 사용하세요.');
     const original = Object.fromEntries(keys.map(k => [k, fs.readFileSync(path.join(folder, k + '.bak'))]));
     if (!sameHashes(hashes(original), record.before)) throw new Error('백업이 손상됐습니다.');
     replacePair(game, current, original, { running });
@@ -145,8 +158,8 @@ async function main(argv = process.argv.slice(2)) {
     version: { type: 'boolean' }, help: { type: 'boolean' }, yes: { type: 'boolean' }, game: { type: 'string' }, output: { type: 'string' },
   } });
   if (values.version) { console.log(VERSION); return; }
-  if (values.help) { console.log('node tool.js [status|trial|apply|restore] [--game "게임 설치 폴더"] [--yes]\ntrial: --output "새 출력 폴더" 필수'); return; }
-  if (positionals.length > 1 || (positionals.length && !['status', 'trial', 'apply', 'restore'].includes(positionals[0]))) throw new Error('지원하지 않는 명령입니다. --help로 확인하세요.');
+  if (values.help) { console.log('node tool.js [status|trial|apply|remove|restore] [--game "게임 설치 폴더"] [--yes]\nremove: M2G만 제거 (현재 워프/가드 유지)\nrestore: 최신 전체 백업 복원\ntrial: --output "새 출력 폴더" 필수'); return; }
+  if (positionals.length > 1 || (positionals.length && !['status', 'trial', 'apply', 'remove', 'restore'].includes(positionals[0]))) throw new Error('지원하지 않는 명령입니다. --help로 확인하세요.');
   let input, lines;
   async function ask(prompt) {
     if (!input) { input = require('node:readline').createInterface({ input: process.stdin, crlfDelay: Infinity }); lines = input[Symbol.asyncIterator](); }
@@ -165,18 +178,18 @@ async function main(argv = process.argv.slice(2)) {
       console.log(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`);
       console.log('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.');
       console.log('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다.');
-      console.log('최신 워프툴은 적용 순서 무관. 전체 백업 복원은 적용 당시 상태를 기준으로 합니다.');
-      console.log('1. 상태 확인\n2. 적용\n3. 전용 백업으로 복원\n0. 종료');
+      console.log('M2G만 없애려면 4번. 전체 백업 복원은 당시 워프 상태까지 되돌립니다.');
+      console.log('1. 상태 확인\n2. 적용\n3. 최신 전체 백업 복원\n4. M2G만 제거 (현재 워프·가드 유지)\n0. 종료');
       const choice = await ask('선택: ');
       if (choice === '0') return;
-      command = { 1: 'status', 2: 'apply', 3: 'restore' }[choice];
+      command = { 1: 'status', 2: 'apply', 3: 'restore', 4: 'remove' }[choice];
       if (!command) throw new Error('잘못된 선택');
     }
     if (command === 'status') {
       const status = inspectStatus(readPair(game), records(game, backupRoot));
       if (status.applied) {
         console.log('나이프 전용 적용됨.' + (status.combination?.warp ? ' 워프 함께 적용됨.' : ''));
-        if (!status.exactBackup) console.log('현재 파일과 정확히 일치하는 적용 백업은 없습니다. 상태 인식만 확인했으며, 전체 백업 복원 안전장치는 유지됩니다.');
+        if (!status.exactBackup) console.log('현재 파일과 정확히 일치하는 적용 백업은 없습니다. M2G만 제거는 메뉴 4번을 사용하세요. 전체 백업 복원 안전장치는 유지됩니다.');
       } else console.log('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.');
     } else if (command === 'trial') {
       if (!values.output) throw new Error('trial은 --output "새 출력 폴더"가 필요합니다.');
@@ -188,13 +201,14 @@ async function main(argv = process.argv.slice(2)) {
     } else {
       if (!values.yes && !['y', 'yes'].includes((await ask(`게임 종료 후 실행하세요. ${command} 진행? (y/N): `)).toLowerCase())) return;
       console.log('파일 검증 및 처리 중입니다. 창을 닫지 마세요.');
-      const folder = command === 'apply' ? apply(game, backupRoot) : restore(game, backupRoot);
+      const folder = command === 'apply' ? apply(game, backupRoot) : command === 'remove' ? remove(game, backupRoot) : restore(game, backupRoot);
       console.log(`${command} 완료. 백업: ${folder}`);
     }
   } finally { input?.close(); }
 }
 if (require.main === module) main().catch(error => {
-  console.error(`오류: ${error.message}\n파일 접근이 거부되면 터미널을 관리자 권한으로 실행하세요.`);
+  console.error(`오류: ${error.message}`);
+  if (['EACCES', 'EPERM'].includes(error.code)) console.error('파일 접근이 거부되었습니다. 게임을 종료하고 관리자 권한 터미널을 사용하세요.');
   process.exitCode = 1;
 });
-module.exports = { VERSION, FILES, gameRunning, readPair, hashes, buildPair, inspectStatus, saveRecord, replacePair, apply, records, restore, detectGame, main };
+module.exports = { VERSION, FILES, gameRunning, readPair, hashes, buildPair, removePatchPair, inspectStatus, saveRecord, replacePair, apply, remove, records, restore, detectGame, main };
