@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "steamBuildId": "25136512",
+  "profiles": [
+    {
+      "sha256": "fe08d81e0fa116a2c17fae9b255f8d6e3533a5735d856bf265e0bfd7d6935602",
+      "guard": "off-off",
+      "warp": false
+    },
+    {
+      "sha256": "610483bf5146e40e09b40f374648d45271c6a758fa266b37b801c8fbd811310b",
+      "guard": "off-off",
+      "warp": true
+    },
+    {
+      "sha256": "8e6ae884ff643bb2b149daeac6d5a7e3124b965d94db38d06661b7cd6b92dcbf",
+      "guard": "off-on",
+      "warp": false
+    },
+    {
+      "sha256": "f6307b078e7ad78071913d84463993f72fe67f5819e8af3edef2fbc326e79df0",
+      "guard": "off-on",
+      "warp": true
+    },
+    {
+      "sha256": "7ef0b24ff49dafb91670aae994ebdc979f608e1fc13e0692ba10757771dbc2f0",
+      "guard": "on-off",
+      "warp": false
+    },
+    {
+      "sha256": "7d9b646cb74787216d53e505efc5a889733cde97b429643caba5d336bd510c3c",
+      "guard": "on-off",
+      "warp": true
+    },
+    {
+      "sha256": "24cc6fd27bddadb57b3f0b0a9c9004971f3bad574a1e046258c1a52cde314540",
+      "guard": "on-on",
+      "warp": false
+    },
+    {
+      "sha256": "c444c72e8f844c69ed77d47948b24260cd19c60cb4def685adbce28af3977838",
+      "guard": "on-on",
+      "warp": true
+    }
+  ]
+}

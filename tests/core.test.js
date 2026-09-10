@@ -152,11 +152,29 @@ function batch(name, args, withNode = true) {
     cwd: path.join(__dirname, '..'), env, input: '\n', encoding: 'utf8', windowsHide: true,
   });
 }
+test('status validates EXE linkage even for a matching historical backup', () => {
+  const upk = Buffer.from('test package');
+  const entry = Buffer.concat([Buffer.from('brggame.upk\0'), createHash('sha1').update(upk).digest()]);
+  const pair = { upk, exe: Buffer.concat([Buffer.from('MZ'), entry, entry]) };
+  const records = [{ record: { state: 'applied', after: t.hashes(pair) } }];
+  assert.deepEqual(t.inspectStatus(pair, records), { applied: true, exactBackup: true, combination: null });
+  const broken = { ...pair, exe: Buffer.from(pair.exe) }; broken.exe[broken.exe.length - 1] ^= 1;
+  assert.throws(() => t.inspectStatus(broken, [{ record: { state: 'applied', after: t.hashes(broken) } }]), /hash does not match/);
+});
+test('known status combinations cover four guard settings with and without warp', () => {
+  const { profiles } = require('../known-combinations.json');
+  assert.equal(profiles.length, 8); assert.equal(new Set(profiles.map(p => p.sha256)).size, 8);
+  for (const guard of ['off-off', 'off-on', 'on-off', 'on-on']) {
+    assert.equal(profiles.filter(p => p.guard === guard && p.warp).length, 1);
+    assert.equal(profiles.filter(p => p.guard === guard && !p.warp).length, 1);
+  }
+  profiles.forEach(p => assert.match(p.sha256, /^[a-f0-9]{64}$/));
+});
 test('Windows run.bat and legacy setup.bat launch Node without Python', { skip: process.platform !== 'win32' }, () => {
   for (const name of ['run.bat', 'setup.bat']) {
     const result = batch(name, '--version');
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /1\.1\.0/);
+    assert.ok(result.stdout.includes(t.VERSION));
   }
 });
 test('Windows launcher pauses and preserves CLI failure exit code', { skip: process.platform !== 'win32' }, () => {

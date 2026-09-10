@@ -13,7 +13,7 @@ fs.mkdirSync(path.join(root, '.test-output'), { recursive: true });
 const output = fs.mkdtempSync(path.join(root, '.test-output/node-integration-'));
 const distribution = path.join(output, '배포 도구'), game = path.join(output, '게임 복사본');
 fs.mkdirSync(distribution);
-for (const name of ['tool.js', 'bytecode.js', 'package-patch.js', 'package.json', 'run.bat', 'setup.bat']) fs.copyFileSync(path.join(root, name), path.join(distribution, name));
+for (const name of ['tool.js', 'bytecode.js', 'package-patch.js', 'known-combinations.json', 'package.json', 'run.bat', 'setup.bat']) fs.copyFileSync(path.join(root, name), path.join(distribution, name));
 for (const rel of ['vendor/README.md', 'vendor/lzo1x/LICENSE', 'vendor/lzo1x/dist/index.cjs']) {
   const target = path.join(distribution, rel);
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -61,7 +61,7 @@ if (legacyDir) {
   report.legacyPythonPatchRestored = true;
 }
 const bat = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'run.bat --version'], { cwd: distribution, encoding: 'utf8', env, input: '\n', windowsHide: true });
-assert.equal(bat.status, 0, bat.stdout + bat.stderr); assert.match(bat.stdout, /1\.1\.0/);
+assert.equal(bat.status, 0, bat.stdout + bat.stderr); assert.ok(bat.stdout.includes(t.VERSION));
 assert.deepEqual(t.hashes(t.readPair(sourceGame)), beforeHashes);
 report.cleanNodeOnlyDistribution = true;
 report.exactRestore = true;

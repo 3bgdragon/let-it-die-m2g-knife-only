@@ -6,7 +6,8 @@ const { randomUUID } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { parseArgs } = require('node:util');
 const patch = require('./package-patch');
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
+const knownCombinations = require('./known-combinations.json').profiles;
 const FILES = { upk: 'BrgGame/CookedPCConsole/BrgGame.upk', exe: 'Binaries/Win64/BrgGame-Steam.exe' };
 const keys = Object.keys(FILES);
 function gameRunning() {
@@ -20,6 +21,17 @@ const sameHashes = (a, b) => keys.every(k => a?.[k] === b?.[k]);
 function buildPair(pair) {
   const upk = patch.build(pair.upk);
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
+}
+function inspectStatus(pair, backupRecords = []) {
+  // Read-only recognition: do not relax restore's exact-backup checks.
+  // A known UPK still needs a valid two-entry EXE manifest link.
+  patch.linkExecutable(pair.exe, pair.upk, pair.upk);
+  const current = hashes(pair);
+  const exactBackup = backupRecords.some(({ record }) => record.state !== 'restored' && sameHashes(record.after, current));
+  const combination = knownCombinations.find(p => p.sha256 === current.upk);
+  if (exactBackup || combination) return { applied: true, exactBackup, combination: combination || null };
+  buildPair(pair);
+  return { applied: false, exactBackup: false, combination: null };
 }
 function writeExclusive(file, data) {
   const fd = fs.openSync(file, 'wx');
@@ -153,7 +165,7 @@ async function main(argv = process.argv.slice(2)) {
       console.log(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`);
       console.log('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.');
       console.log('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다.');
-      console.log('다른 UPK 패치 도구는 이 모드를 먼저 복원한 뒤 사용하세요.');
+      console.log('최신 워프툴은 적용 순서 무관. 전체 백업 복원은 적용 당시 상태를 기준으로 합니다.');
       console.log('1. 상태 확인\n2. 적용\n3. 전용 백업으로 복원\n0. 종료');
       const choice = await ask('선택: ');
       if (choice === '0') return;
@@ -161,9 +173,11 @@ async function main(argv = process.argv.slice(2)) {
       if (!command) throw new Error('잘못된 선택');
     }
     if (command === 'status') {
-      const pair = readPair(game), current = hashes(pair);
-      if (records(game, backupRoot).some(({ record }) => record.state !== 'restored' && sameHashes(record.after, current))) console.log('나이프 전용 적용됨. 기존 버전 백업도 지원합니다.');
-      else { buildPair(pair); console.log('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.'); }
+      const status = inspectStatus(readPair(game), records(game, backupRoot));
+      if (status.applied) {
+        console.log('나이프 전용 적용됨.' + (status.combination?.warp ? ' 워프 함께 적용됨.' : ''));
+        if (!status.exactBackup) console.log('현재 파일과 정확히 일치하는 적용 백업은 없습니다. 상태 인식만 확인했으며, 전체 백업 복원 안전장치는 유지됩니다.');
+      } else console.log('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.');
     } else if (command === 'trial') {
       if (!values.output) throw new Error('trial은 --output "새 출력 폴더"가 필요합니다.');
       const before = readPair(game), after = buildPair(before), output = path.resolve(values.output);
@@ -183,4 +197,4 @@ if (require.main === module) main().catch(error => {
   console.error(`오류: ${error.message}\n파일 접근이 거부되면 터미널을 관리자 권한으로 실행하세요.`);
   process.exitCode = 1;
 });
-module.exports = { VERSION, FILES, gameRunning, readPair, hashes, buildPair, saveRecord, replacePair, apply, records, restore, detectGame, main };
+module.exports = { VERSION, FILES, gameRunning, readPair, hashes, buildPair, inspectStatus, saveRecord, replacePair, apply, records, restore, detectGame, main };
