@@ -6,7 +6,8 @@ const { randomUUID } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { parseArgs } = require('node:util');
 const patch = require('./package-patch');
-const VERSION = '1.2.0';
+const embedded = require('./embedded');
+const VERSION = '1.3.0';
 const knownCombinations = require('./known-combinations.json').profiles;
 const FILES = { upk: 'BrgGame/CookedPCConsole/BrgGame.upk', exe: 'Binaries/Win64/BrgGame-Steam.exe' };
 const keys = Object.keys(FILES);
@@ -19,10 +20,14 @@ const readPair = game => Object.fromEntries(keys.map(k => [k, fs.readFileSync(pa
 const hashes = pair => Object.fromEntries(keys.map(k => [k, patch.sha(pair[k])]));
 const sameHashes = (a, b) => keys.every(k => a?.[k] === b?.[k]);
 function buildPair(pair) {
-  const upk = patch.build(pair.upk);
+  const upk = embedded.identify(pair.upk) ? embedded.set(pair.upk, true) : patch.build(pair.upk);
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
 }
 function removePatchPair(pair) {
+  if (embedded.identify(pair.upk)) {
+    const upk = embedded.set(pair.upk, false);
+    return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
+  }
   const profile = knownCombinations.find(p => p.sha256 === patch.sha(pair.upk));
   if (!profile) throw new Error('지원하지 않는 M2G 파일입니다. 선택 제거하지 않고 중단합니다.');
   const upk = Buffer.from(pair.upk.subarray(0, profile.baseSize));
@@ -37,6 +42,9 @@ function inspectStatus(pair, backupRecords = []) {
   // A known UPK still needs a valid two-entry EXE manifest link.
   patch.linkExecutable(pair.exe, pair.upk, pair.upk);
   const current = hashes(pair);
+  const matchingBackup = backupRecords.some(({ record }) => record.state !== 'restored' && record.operation !== 'remove' && sameHashes(record.after, current));
+  const newer = embedded.identify(pair.upk);
+  if (newer) return { applied: newer.enabled, exactBackup: matchingBackup, combination: newer.profile };
   const exactBackup = backupRecords.some(({ record }) => record.state !== 'restored' && record.operation !== 'remove' && sameHashes(record.after, current));
   const combination = knownCombinations.find(p => p.sha256 === current.upk);
   if (exactBackup || combination) return { applied: true, exactBackup, combination: combination || null };
@@ -126,7 +134,8 @@ function restore(game, backupRoot, { running = gameRunning } = {}) {
   const current = readPair(game), currentHashes = hashes(current);
   for (const { folder, record } of records(game, backupRoot)) {
     if (record.state === 'restored') continue;
-    if (!keys.every(k => [record.before[k], record.after[k]].includes(currentHashes[k]))) throw new Error('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다. M2G만 없애려면 메뉴 4번 M2G만 제거 또는 remove 명령을 사용하세요.');
+    const interruptedOwnWrite = record.state === 'prepared' && keys.every(k => [record.before[k], record.after[k]].includes(currentHashes[k]));
+    if (!interruptedOwnWrite && !sameHashes(record.before, currentHashes) && !sameHashes(record.after, currentHashes)) throw new Error('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다. M2G만 없애려면 메뉴 4번 M2G만 제거 또는 remove 명령을 사용하세요.');
     const original = Object.fromEntries(keys.map(k => [k, fs.readFileSync(path.join(folder, k + '.bak'))]));
     if (!sameHashes(hashes(original), record.before)) throw new Error('백업이 손상됐습니다.');
     replacePair(game, current, original, { running });
@@ -178,7 +187,7 @@ async function main(argv = process.argv.slice(2)) {
       console.log(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`);
       console.log('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.');
       console.log('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다.');
-      console.log('M2G만 없애려면 4번. 전체 백업 복원은 당시 워프 상태까지 되돌립니다.');
+      console.log('M2G만 없애려면 4번. 다른 패치를 이후 변경했다면 전체 백업 복원은 차단됩니다.');
       console.log('1. 상태 확인\n2. 적용\n3. 최신 전체 백업 복원\n4. M2G만 제거 (현재 워프·가드 유지)\n0. 종료');
       const choice = await ask('선택: ');
       if (choice === '0') return;
