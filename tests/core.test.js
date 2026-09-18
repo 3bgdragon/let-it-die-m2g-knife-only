@@ -163,10 +163,10 @@ test('status validates EXE linkage even for a matching historical backup', () =>
 });
 test('known status combinations cover four guard settings with and without warp', () => {
   const { profiles } = require('../known-combinations.json');
-  assert.equal(profiles.length, 16); assert.equal(new Set(profiles.map(p => p.sha256)).size, 16);
+  assert.equal(profiles.length, 24); assert.equal(new Set(profiles.map(p => p.sha256)).size, 24);
   for (const guard of ['off-off', 'off-on', 'on-off', 'on-on']) {
-    assert.equal(profiles.filter(p => p.guard === guard && p.warp).length, 2);
-    assert.equal(profiles.filter(p => p.guard === guard && !p.warp).length, 2);
+    assert.equal(profiles.filter(p => p.guard === guard && p.warp).length, 3);
+    assert.equal(profiles.filter(p => p.guard === guard && !p.warp).length, 3);
   }
   profiles.forEach(p => assert.match(p.sha256, /^[a-f0-9]{64}$/));
 });
