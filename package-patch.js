@@ -1,4 +1,5 @@
 'use strict';
+const { text: t } = require('./language');
 
 const { createHash } = require('node:crypto');
 const { lzo1xCompress, lzo1xDecompress } = require('./vendor/lzo1x/dist/index.cjs');
@@ -125,9 +126,9 @@ function build(source) {
   const layout = getLayout(source);
   const table = entries(source), original = readAt(source, table, layout.playOffset, layout.playSize).data;
   const check = readAt(source, table, layout.checkOffset, layout.checkSize).data;
-  if (sha(original) !== layout.playHash || sha(check) !== layout.checkHash) throw new Error('지원되지 않거나 변경된 M2G 함수입니다. 파일을 변경하지 않았습니다.');
+  if (sha(original) !== layout.playHash || sha(check) !== layout.checkHash) throw new Error(t('지원되지 않거나 변경된 M2G 함수입니다. 파일을 변경하지 않았습니다.', 'Unsupported or modified M2G functions. No files were changed.'));
   const exp = readAt(source, table, layout.exportSlot + 32, 8);
-  if (!exp.data.equals(words(layout.playSize, layout.playOffset))) throw new Error('이미 적용됐거나 지원되지 않는 PlayShot 위치입니다.');
+  if (!exp.data.equals(words(layout.playSize, layout.playOffset))) throw new Error(t('이미 적용됐거나 지원되지 않는 PlayShot 위치입니다.', 'PlayShot is already patched or has an unsupported location.'));
   const replacement = patchPlayShot(original, layout), last = table.length - 1;
   const newOffset = table[last][0] + table[last][1];
   const final = Buffer.concat([unpack(source, table[last]), replacement]);

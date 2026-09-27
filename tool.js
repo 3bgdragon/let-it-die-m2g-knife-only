@@ -1,5 +1,6 @@
 'use strict';
 
+const { configure, text: t } = require('./language');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
@@ -29,10 +30,10 @@ function removePatchPair(pair) {
     return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
   }
   const profile = knownCombinations.find(p => p.sha256 === patch.sha(pair.upk));
-  if (!profile) throw new Error('지원하지 않는 M2G 파일입니다. 선택 제거하지 않고 중단합니다.');
+  if (!profile) throw new Error(t('지원하지 않는 M2G 파일입니다. 선택 제거하지 않고 중단합니다.', 'Unsupported M2G file. Selective removal stopped.'));
   const upk = Buffer.from(pair.upk.subarray(0, profile.baseSize));
   for (const entry of profile.directory) Buffer.from(entry.hex, 'hex').copy(upk, entry.offset);
-  if (patch.sha(upk) !== profile.baseSha256) throw new Error('M2G 제거 후 패키지 검증 실패');
+  if (patch.sha(upk) !== profile.baseSha256) throw new Error(t('M2G 제거 후 패키지 검증 실패', 'Package verification failed after M2G removal'));
   // Preserve the current EXE, including current warp/native changes. Update
   // only M2G's two UPK digests, after validating both old links.
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
@@ -62,9 +63,9 @@ function saveRecord(folder, record) {
   fs.renameSync(pending, path.join(folder, 'record.json'));
 }
 function replacePair(game, before, after, { running = gameRunning, replace = fs.renameSync } = {}) {
-  if (running()) throw new Error('게임을 완전히 종료하세요.');
+  if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const beforeHashes = hashes(before), afterHashes = hashes(after);
-  if (!sameHashes(hashes(readPair(game)), beforeHashes)) throw new Error('작업 중 게임 파일이 변경됐습니다.');
+  if (!sameHashes(hashes(readPair(game)), beforeHashes)) throw new Error(t('작업 중 게임 파일이 변경됐습니다.', 'Game files changed during the operation.'));
   const suffix = `.m2g-${randomUUID()}.tmp`, staged = {}, installed = [];
   try {
     for (const key of keys) {
@@ -73,17 +74,17 @@ function replacePair(game, before, after, { running = gameRunning, replace = fs.
       const fd = fs.openSync(temporary, 'wx'); staged[key] = temporary;
       try { fs.writeFileSync(fd, after[key]); fs.fsyncSync(fd); }
       finally { fs.closeSync(fd); }
-      if (patch.sha(fs.readFileSync(temporary)) !== afterHashes[key]) throw new Error('임시 파일 검증 실패');
+      if (patch.sha(fs.readFileSync(temporary)) !== afterHashes[key]) throw new Error(t('임시 파일 검증 실패', 'Temporary file verification failed'));
     }
-    if (running() || !sameHashes(hashes(readPair(game)), beforeHashes)) throw new Error('설치 직전 게임 실행/파일 변경 감지');
+    if (running() || !sameHashes(hashes(readPair(game)), beforeHashes)) throw new Error(t('설치 직전 게임 실행/파일 변경 감지', 'Game launch or file change detected before installation'));
     for (const key of keys) {
       replace(staged[key], path.join(game, FILES[key])); installed.push(key);
     }
-    if (!sameHashes(hashes(readPair(game)), afterHashes)) throw new Error('설치 후 검증 실패');
+    if (!sameHashes(hashes(readPair(game)), afterHashes)) throw new Error(t('설치 후 검증 실패', 'Post-installation verification failed'));
   } catch (error) {
     for (const key of installed.reverse()) {
       const destination = path.join(game, FILES[key]);
-      if (patch.sha(fs.readFileSync(destination)) !== afterHashes[key]) throw new Error('외부 파일 변경: 자동 복원 중단. 전용 백업을 보존했습니다.', { cause: error });
+      if (patch.sha(fs.readFileSync(destination)) !== afterHashes[key]) throw new Error(t('외부 파일 변경: 자동 복원 중단. 전용 백업을 보존했습니다.', 'External file change: automatic rollback stopped. The backup has been preserved.'), { cause: error });
       const rollback = destination + suffix + '.rollback';
       writeExclusive(rollback, before[key]); fs.renameSync(rollback, destination);
     }
@@ -93,7 +94,7 @@ function replacePair(game, before, after, { running = gameRunning, replace = fs.
   }
 }
 function apply(game, backupRoot, { running = gameRunning, builder = buildPair, operation = 'apply' } = {}) {
-  if (running()) throw new Error('게임을 완전히 종료하세요.');
+  if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const before = readPair(game), after = builder(before);
   const now = new Date(), pad = n => String(n).padStart(2, '0');
   // Same sortable local-time prefix as v1.0.0 Python backups.
@@ -103,7 +104,7 @@ function apply(game, backupRoot, { running = gameRunning, builder = buildPair, o
   for (const key of keys) {
     const file = path.join(folder, key + '.bak');
     writeExclusive(file, before[key]);
-    if (patch.sha(fs.readFileSync(file)) !== patch.sha(before[key])) throw new Error('백업 검증 실패');
+    if (patch.sha(fs.readFileSync(file)) !== patch.sha(before[key])) throw new Error(t('백업 검증 실패', 'Backup verification failed'));
   }
   const record = { version: 1, game: path.resolve(game), operation, state: 'prepared', before: hashes(before), after: hashes(after) };
   saveRecord(folder, record);
@@ -123,26 +124,26 @@ function records(game, backupRoot) {
     if (!fs.existsSync(file)) continue;
     const record = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
     if (record.version === 1 && typeof record.game === 'string' && canonical(record.game) === canonical(game)) {
-      if (!['prepared', 'applied', 'restored'].includes(record.state) || !keys.every(k => /^[a-f0-9]{64}$/.test(record.before?.[k]) && /^[a-f0-9]{64}$/.test(record.after?.[k]))) throw new Error(`백업 기록 형식 오류: ${file}`);
+      if (!['prepared', 'applied', 'restored'].includes(record.state) || !keys.every(k => /^[a-f0-9]{64}$/.test(record.before?.[k]) && /^[a-f0-9]{64}$/.test(record.after?.[k]))) throw new Error(t(`백업 기록 형식 오류: ${file}`, `Invalid backup record: ${file}`));
       result.push({ folder, record });
     }
   }
   return result;
 }
 function restore(game, backupRoot, { running = gameRunning } = {}) {
-  if (running()) throw new Error('게임을 완전히 종료하세요.');
+  if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const current = readPair(game), currentHashes = hashes(current);
   for (const { folder, record } of records(game, backupRoot)) {
     if (record.state === 'restored') continue;
     const interruptedOwnWrite = record.state === 'prepared' && keys.every(k => [record.before[k], record.after[k]].includes(currentHashes[k]));
-    if (!interruptedOwnWrite && !sameHashes(record.before, currentHashes) && !sameHashes(record.after, currentHashes)) throw new Error('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다. M2G만 없애려면 메뉴 4번 M2G만 제거 또는 remove 명령을 사용하세요.');
+    if (!interruptedOwnWrite && !sameHashes(record.before, currentHashes) && !sameHashes(record.after, currentHashes)) throw new Error(t('패치 이후 다른 도구/업데이트가 파일을 변경했습니다. 전체 백업으로 덮어쓰지 않고 중단합니다. M2G만 없애려면 메뉴 4번 M2G만 제거 또는 remove 명령을 사용하세요.', 'Another tool or update changed files after patching. Full restore blocked to avoid overwriting changes. Use menu 4 or the remove command to remove only M2G.'));
     const original = Object.fromEntries(keys.map(k => [k, fs.readFileSync(path.join(folder, k + '.bak'))]));
-    if (!sameHashes(hashes(original), record.before)) throw new Error('백업이 손상됐습니다.');
+    if (!sameHashes(hashes(original), record.before)) throw new Error(t('백업이 손상됐습니다.', 'The backup is corrupted.'));
     replacePair(game, current, original, { running });
     record.state = 'restored'; saveRecord(folder, record);
     return folder;
   }
-  throw new Error('이 게임 경로의 복원 가능한 전용 백업이 없습니다. 기존 버전의 backups 폴더를 함께 옮기세요.');
+  throw new Error(t('이 게임 경로의 복원 가능한 전용 백업이 없습니다. 기존 버전의 backups 폴더를 함께 옮기세요.', 'No restorable backup for this game path. Copy the backups folder from the previous tool version.'));
 }
 function detectGame() {
   const steamRoots = [path.join(process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)', 'Steam')];
@@ -163,61 +164,62 @@ function detectGame() {
   return null;
 }
 async function main(argv = process.argv.slice(2)) {
+  argv = configure(argv, __dirname);
   const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: {
     version: { type: 'boolean' }, help: { type: 'boolean' }, yes: { type: 'boolean' }, game: { type: 'string' }, output: { type: 'string' },
   } });
   if (values.version) { console.log(VERSION); return; }
-  if (values.help) { console.log('node tool.js [status|trial|apply|remove|restore] [--game "게임 설치 폴더"] [--yes]\nremove: M2G만 제거 (현재 워프/가드 유지)\nrestore: 최신 전체 백업 복원\ntrial: --output "새 출력 폴더" 필수'); return; }
-  if (positionals.length > 1 || (positionals.length && !['status', 'trial', 'apply', 'remove', 'restore'].includes(positionals[0]))) throw new Error('지원하지 않는 명령입니다. --help로 확인하세요.');
+  if (values.help) { console.log(t('node tool.js [status|trial|apply|remove|restore] [--game "게임 설치 폴더"] [--yes]\nremove: M2G만 제거 (현재 워프/가드 유지)\nrestore: 최신 전체 백업 복원\ntrial: --output "새 출력 폴더" 필수', 'node tool.js [status|trial|apply|remove|restore] [--game "installation folder"] [--yes] [--lang ko|en]\nremove: remove only M2G (preserve current warp/guard)\nrestore: restore latest full backup\ntrial: requires --output "new output folder"')); return; }
+  if (positionals.length > 1 || (positionals.length && !['status', 'trial', 'apply', 'remove', 'restore'].includes(positionals[0]))) throw new Error(t('지원하지 않는 명령입니다. --help로 확인하세요.', 'Unsupported command. See --help.'));
   let input, lines;
   async function ask(prompt) {
     if (!input) { input = require('node:readline').createInterface({ input: process.stdin, crlfDelay: Infinity }); lines = input[Symbol.asyncIterator](); }
     process.stdout.write(prompt);
     const line = await lines.next();
-    if (line.done) throw new Error('입력이 종료됐습니다.');
+    if (line.done) throw new Error(t('입력이 종료됐습니다.', 'Input ended.'));
     return line.value.trim();
   }
   try {
     let game = values.game || detectGame(), command = positionals[0];
-    if (!game && !command) game = (await ask('LET IT DIE 설치 폴더: ')).replace(/^"|"$/g, '');
-    if (!game) throw new Error('--game "설치 폴더"를 지정하세요.');
+    if (!game && !command) game = (await ask(t('LET IT DIE 설치 폴더: ', 'LET IT DIE installation folder: '))).replace(/^"|"$/g, '');
+    if (!game) throw new Error(t('--game "설치 폴더"를 지정하세요.', 'Specify --game "installation folder".'));
     game = path.resolve(game);
     const backupRoot = path.join(__dirname, 'backups');
     if (!command) {
-      console.log(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`);
-      console.log('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.');
-      console.log('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다.');
-      console.log('M2G만 없애려면 4번. 다른 패치를 이후 변경했다면 전체 백업 복원은 차단됩니다.');
-      console.log('1. 상태 확인\n2. 적용\n3. 최신 전체 백업 복원\n4. M2G만 제거 (현재 워프·가드 유지)\n0. 종료');
-      const choice = await ask('선택: ');
+      console.log(t(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`, `\nM2G Knife-Only Mod ${VERSION} · Node.js\nGame: ${game}`));
+      console.log(t('플레이어 일반 사격만 나이프로 변경. 레이지·AI·피해 배율·비용 유지.', 'Only normal player shots become knives. Rage, AI, damage multipliers and costs are unchanged.'));
+      console.log(t('조준 룰렛 그림은 그대로지만 실제 사격은 나이프입니다.', 'The aiming roulette is unchanged visually, but actual shots fire knives.'));
+      console.log(t('M2G만 없애려면 4번. 다른 패치를 이후 변경했다면 전체 백업 복원은 차단됩니다.', 'Choose 4 to remove only M2G. Full restore is blocked if other patches changed the files later.'));
+      console.log(t('1. 상태 확인\n2. 적용\n3. 최신 전체 백업 복원\n4. M2G만 제거 (현재 워프·가드 유지)\n0. 종료', '1. Status\n2. Apply\n3. Restore latest full backup\n4. Remove only M2G (preserve current warp/guard)\n0. Exit'));
+      const choice = await ask(t('선택: ', 'Select: '));
       if (choice === '0') return;
       command = { 1: 'status', 2: 'apply', 3: 'restore', 4: 'remove' }[choice];
-      if (!command) throw new Error('잘못된 선택');
+      if (!command) throw new Error(t('잘못된 선택', 'Invalid selection'));
     }
     if (command === 'status') {
       const status = inspectStatus(readPair(game), records(game, backupRoot));
       if (status.applied) {
-        console.log('나이프 전용 적용됨.' + (status.combination?.warp ? ' 워프 함께 적용됨.' : ''));
-        if (!status.exactBackup) console.log('현재 파일과 정확히 일치하는 적용 백업은 없습니다. M2G만 제거는 메뉴 4번을 사용하세요. 전체 백업 복원 안전장치는 유지됩니다.');
-      } else console.log('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.');
+        console.log(t('나이프 전용 적용됨.', 'Knife-only mode applied.') + (status.combination?.warp ? t(' 워프 함께 적용됨.', ' Warp is also applied.') : ''));
+        if (!status.exactBackup) console.log(t('현재 파일과 정확히 일치하는 적용 백업은 없습니다. M2G만 제거는 메뉴 4번을 사용하세요. 전체 백업 복원 안전장치는 유지됩니다.', 'No applied backup exactly matches the current files. Use menu 4 to remove only M2G. Full-restore safety checks remain active.'));
+      } else console.log(t('지원되는 M2G 함수/실행 파일 해시 연결 확인. 현재 미적용.', 'Supported M2G functions and executable hash links verified. Not currently applied.'));
     } else if (command === 'trial') {
-      if (!values.output) throw new Error('trial은 --output "새 출력 폴더"가 필요합니다.');
+      if (!values.output) throw new Error(t('trial은 --output "새 출력 폴더"가 필요합니다.', 'trial requires --output "new output folder".'));
       const before = readPair(game), after = buildPair(before), output = path.resolve(values.output);
       fs.mkdirSync(output);
       for (const key of keys) writeExclusive(path.join(output, path.basename(FILES[key])), after[key]);
-      if (!sameHashes(hashes(readPair(game)), hashes(before))) throw new Error('검증 중 원본이 변경됐습니다.');
-      console.log(`복사본 생성 완료: ${output}\n원본 게임은 변경하지 않았습니다.`);
+      if (!sameHashes(hashes(readPair(game)), hashes(before))) throw new Error(t('검증 중 원본이 변경됐습니다.', 'Original files changed during verification.'));
+      console.log(t(`복사본 생성 완료: ${output}\n원본 게임은 변경하지 않았습니다.`, `Copies created: ${output}\nOriginal game files were not changed.`));
     } else {
-      if (!values.yes && !['y', 'yes'].includes((await ask(`게임 종료 후 실행하세요. ${command} 진행? (y/N): `)).toLowerCase())) return;
-      console.log('파일 검증 및 처리 중입니다. 창을 닫지 마세요.');
+      if (!values.yes && !['y', 'yes'].includes((await ask(t(`게임 종료 후 실행하세요. ${command} 진행? (y/N): `, `Close the game first. Proceed with ${command}? (y/N): `))).toLowerCase())) return;
+      console.log(t('파일 검증 및 처리 중입니다. 창을 닫지 마세요.', 'Verifying and processing files. Do not close this window.'));
       const folder = command === 'apply' ? apply(game, backupRoot) : command === 'remove' ? remove(game, backupRoot) : restore(game, backupRoot);
-      console.log(`${command} 완료. 백업: ${folder}`);
+      console.log(t(`${command} 완료. 백업: ${folder}`, `${command} completed. Backup: ${folder}`));
     }
   } finally { input?.close(); }
 }
 if (require.main === module) main().catch(error => {
-  console.error(`오류: ${error.message}`);
-  if (['EACCES', 'EPERM'].includes(error.code)) console.error('파일 접근이 거부되었습니다. 게임을 종료하고 관리자 권한 터미널을 사용하세요.');
+  console.error(t(`오류: ${error.message}`, `Error: ${error.message}`));
+  if (['EACCES', 'EPERM'].includes(error.code)) console.error(t('파일 접근이 거부되었습니다. 게임을 종료하고 관리자 권한 터미널을 사용하세요.', 'File access denied. Close the game and use an administrator terminal.'));
   process.exitCode = 1;
 });
 module.exports = { VERSION, FILES, gameRunning, readPair, hashes, buildPair, removePatchPair, inspectStatus, saveRecord, replacePair, apply, remove, records, restore, detectGame, main };
