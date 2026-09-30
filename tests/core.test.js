@@ -89,6 +89,10 @@ test('apply then restore: exact backups and record version 1', ctx => {
   assert.deepEqual(t.readPair(f.game), f.before);
   assert.equal(t.records(f.game, f.backups)[0].record.state, 'restored');
 });
+test('identical M2G result is a no-op without creating a backup',ctx=>{
+ const f=fixture(ctx);assert.equal(t.apply(f.game,f.backups,{running:()=>false,builder:pair=>pair}),null);
+ assert.deepEqual(t.readPair(f.game),f.before);assert.equal(fs.existsSync(f.backups),false);
+});
 test('failed second replacement rolls back first and cleans staged files', ctx => {
   const f = fixture(ctx); let count = 0;
   assert.throws(() => t.replacePair(f.game, f.before, f.after, { running: () => false, replace: (a, z) => {

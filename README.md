@@ -1,5 +1,15 @@
 # LET IT DIE M2G Knife-Only Mode
 
+## Shared composition preview — 1.5.0-dev
+
+Update all four tools together. The bundled Node.js composition kernel separates
+verified vending in temporary copies, changes M2G, and recomposes vending while
+preserving warp/JG. Keep the visible `LID-Mod-State` in the game folder. Register
+old vending installs using option 8 in the new vending tool. `remove` removes M2G
+only; shared full restore refuses later changes. Unknown changes remain blocked.
+Composition targets build 25386710 and needs gameplay verification; legacy support remains.
+Use Node.js 22.5 or newer with shared vending management (SQLite migration needs it).
+
 [English](README.md) | [한국어](README.ko.md)
 
 A player M2G knife-only firing mode, separate from the save multitool’s DB knife damage compensation.
@@ -7,7 +17,7 @@ A player M2G knife-only firing mode, separate from the save multitool’s DB kni
 ## Requirements
 
 - Steam offline edition of LET IT DIE on Windows.
-- Node.js 22 or newer. No npm install is needed for normal use.
+- Node.js 22.5 or newer. No npm install is needed for normal use.
 - Support is determined by file/schema checks, not just the displayed game version. Never bypass an unsupported-file error.
 
 ## Installation

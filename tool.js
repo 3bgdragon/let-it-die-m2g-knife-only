@@ -1,4 +1,5 @@
 'use strict';
+const sharedLayers = require('./shared/layers');
 
 const { configure, text: t } = require('./language');
 const fs = require('node:fs');
@@ -8,7 +9,7 @@ const { execFileSync } = require('node:child_process');
 const { parseArgs } = require('node:util');
 const patch = require('./package-patch');
 const embedded = require('./embedded');
-const VERSION = '1.4.0';
+const VERSION = '1.5.0-dev';
 const knownCombinations = require('./known-combinations.json').profiles;
 const FILES = { upk: 'BrgGame/CookedPCConsole/BrgGame.upk', exe: 'Binaries/Win64/BrgGame-Steam.exe' };
 const keys = Object.keys(FILES);
@@ -17,10 +18,13 @@ function gameRunning() {
   const output = execFileSync('tasklist.exe', ['/FO', 'CSV', '/NH'], { windowsHide: true, encoding: 'utf8' });
   return output.toLowerCase().includes('brggame-steam.exe');
 }
-const readPair = game => Object.fromEntries(keys.map(k => [k, fs.readFileSync(path.join(game, FILES[k]))]));
+const readPair = game => sharedLayers.active(game)?sharedLayers.view(game,stage=>readPair(stage)):Object.fromEntries(keys.map(k => [k, fs.readFileSync(path.join(game, FILES[k]))]));
 const hashes = pair => Object.fromEntries(keys.map(k => [k, patch.sha(pair[k])]));
 const sameHashes = (a, b) => keys.every(k => a?.[k] === b?.[k]);
 function buildPair(pair) {
+  if(knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))){
+    patch.linkExecutable(pair.exe,pair.upk,pair.upk);return pair;
+  }
   const upk = embedded.identify(pair.upk) ? embedded.set(pair.upk, true) : patch.build(pair.upk);
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
 }
@@ -94,8 +98,16 @@ function replacePair(game, before, after, { running = gameRunning, replace = fs.
   }
 }
 function apply(game, backupRoot, { running = gameRunning, builder = buildPair, operation = 'apply' } = {}) {
+  if(sharedLayers.active(game)){
+    const tx=sharedLayers.transact(game,'m2g',stage=>({result:apply(stage,process.env.LID_SHARED_STAGE_BACKUP,{running,builder,operation})}),{checkRunning:running});
+    return tx.backup;
+  }
   if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const before = readPair(game), after = builder(before);
+  if(sameHashes(hashes(before),hashes(after))){
+    if(running()||!sameHashes(hashes(readPair(game)),hashes(before)))throw Error(t('동일 설정 확인 중 게임 실행/파일 변경 감지','Game launch/file change during no-op verification'));
+    return null;
+  }
   const now = new Date(), pad = n => String(n).padStart(2, '0');
   // Same sortable local-time prefix as v1.0.0 Python backups.
   const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
@@ -117,8 +129,8 @@ function remove(game, backupRoot, { running = gameRunning } = {}) {
 }
 const canonical = value => path.resolve(value).toLowerCase();
 function records(game, backupRoot) {
-  if (!fs.existsSync(backupRoot)) return [];
-  const result = [];
+  const result = sharedLayers.backups(game,'m2g').map(folder=>{const r=JSON.parse(fs.readFileSync(path.join(folder,'manifest.json'),'utf8'));return {folder,record:{state:r.status,game:r.game,operation:'shared',shared:true,before:{upk:r.before[1],exe:r.before[0]},after:{upk:r.after[1],exe:r.after[0]}}};});
+  if (!fs.existsSync(backupRoot)) return result;
   for (const item of fs.readdirSync(backupRoot, { withFileTypes: true }).filter(d => d.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
     const folder = path.join(backupRoot, item.name), file = path.join(folder, 'record.json');
     if (!fs.existsSync(file)) continue;
@@ -131,6 +143,9 @@ function records(game, backupRoot) {
   return result;
 }
 function restore(game, backupRoot, { running = gameRunning } = {}) {
+  const shared=sharedLayers.backups(game,'m2g').find(f=>JSON.parse(fs.readFileSync(path.join(f,'manifest.json'),'utf8')).status==='applied');
+  if(shared)return sharedLayers.restore(game,shared,{checkRunning:running}).backupPath;
+  if(sharedLayers.active(game))throw Error(t('공통 레이어가 활성화된 상태에서는 구형 전체 백업을 덮어쓰지 않습니다. M2G만 제거하거나 공통 백업을 사용하세요.','Legacy full restore is blocked while shared layers are active. Remove M2G only or use a shared backup.'));
   if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const current = readPair(game), currentHashes = hashes(current);
   for (const { folder, record } of records(game, backupRoot)) {
@@ -213,7 +228,7 @@ async function main(argv = process.argv.slice(2)) {
       if (!values.yes && !['y', 'yes'].includes((await ask(t(`게임 종료 후 실행하세요. ${command} 진행? (y/N): `, `Close the game first. Proceed with ${command}? (y/N): `))).toLowerCase())) return;
       console.log(t('파일 검증 및 처리 중입니다. 창을 닫지 마세요.', 'Verifying and processing files. Do not close this window.'));
       const folder = command === 'apply' ? apply(game, backupRoot) : command === 'remove' ? remove(game, backupRoot) : restore(game, backupRoot);
-      console.log(t(`${command} 완료. 백업: ${folder}`, `${command} completed. Backup: ${folder}`));
+      console.log(folder?t(`${command} 완료. 백업: ${folder}`, `${command} completed. Backup: ${folder}`):t('이미 선택한 상태입니다. 파일 변경과 새 백업을 생략했습니다.','Already in the selected state. No files changed and no new backup created.'));
     }
   } finally { input?.close(); }
 }
