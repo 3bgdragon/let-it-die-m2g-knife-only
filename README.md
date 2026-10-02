@@ -1,5 +1,23 @@
 # LET IT DIE M2G Knife-Only Mode
 
+
+## EXE validation and manual installation paths
+
+The tool does not require an unchanged whole-file EXE hash for guard/M2G
+package relinking: the old package hash entries must match the current UPK,
+and only the owned links are rewritten. Package validation and full-backup
+restore safeguards remain enabled.
+
+The bundled vending native builder also supports a reviewed build-25386710
+fallback using PE layout and native dependency bytes instead of a whole-file
+EXE hash. Unrelated edits in that layout survive; hook/dependency conflicts,
+changed sections, overlays and unknown structures are still rejected.
+
+If discovery fails, interactive mode accepts the installation folder or
+BrgGame-Steam.exe path, retries invalid paths, and lets Enter cancel.
+Non-interactive CLI use requires a valid --game path. This is not a blanket
+no-validation mode or a guarantee of compatibility with every EXE mod.
+
 ## Shared composition preview — 1.5.0-dev
 
 Update all four tools together. The bundled Node.js composition kernel separates

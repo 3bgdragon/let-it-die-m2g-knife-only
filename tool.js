@@ -195,10 +195,8 @@ async function main(argv = process.argv.slice(2)) {
     return line.value.trim();
   }
   try {
-    let game = values.game || detectGame(), command = positionals[0];
-    if (!game && !command) game = (await ask(t('LET IT DIE 설치 폴더: ', 'LET IT DIE installation folder: '))).replace(/^"|"$/g, '');
-    if (!game) throw new Error(t('--game "설치 폴더"를 지정하세요.', 'Specify --game "installation folder".'));
-    game = path.resolve(game);
+    let command = positionals[0];
+    const game = await require('./game-path').choose({input:values.game,detect:detectGame,files:Object.values(FILES),ask,interactive:!command||Boolean(process.stdin.isTTY),t});
     const backupRoot = path.join(__dirname, 'backups');
     if (!command) {
       console.log(t(`\nM2G 나이프 전용 모드 ${VERSION} · Node.js\n게임: ${game}`, `\nM2G Knife-Only Mod ${VERSION} · Node.js\nGame: ${game}`));
