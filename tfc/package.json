@@ -1,6 +1,6 @@
 {
   "name": "lid-m2g-knife-only-tfc",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "M2G Knife-Only — separate TFC distribution; not the standalone tool",
   "engines": {
