@@ -1,5 +1,14 @@
 # 변경 기록
 
+## 1.5.2-rc.1 / TFC 1.2.0-rc.1 — 2026-10-04
+
+- Preserve reviewed independent UPK instruction edits and Nico file-check OFF entries; reject owned-byte/native conflicts before writes.
+- Add game-specific TFC preparation, all-function post-install proofs, explicit backed-up block-layout repair and interruption recovery.
+- Add selected recorded guard/M2G recovery and prevent preparation/detach with pending recovery journals or mixed installation modes.
+- Publish standalone and TFC ZIPs separately; exclude experimental manager prototypes and game/save binaries.
+- Actual Nico/TFC engine and disposable-copy tests passed. GUI/live gameplay retesting remains pending; prerelease, not universal compatibility.
+
+
 ## 1.5.1-dev — 2026-10-02
 
 - 자동 탐색 실패 시 설치 폴더 또는 EXE 경로를 직접 입력하고 재시도할 수 있습니다.

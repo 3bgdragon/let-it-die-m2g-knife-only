@@ -1,5 +1,6 @@
 'use strict';
 const sharedLayers = require('./shared/layers');
+const ownedFunctions = require('./shared/owned-functions');
 
 const { configure, text: t } = require('./language');
 const fs = require('node:fs');
@@ -9,7 +10,7 @@ const { execFileSync } = require('node:child_process');
 const { parseArgs } = require('node:util');
 const patch = require('./package-patch');
 const embedded = require('./embedded');
-const VERSION = '1.5.1-dev';
+const VERSION = '1.5.2-rc.1';
 const knownCombinations = require('./known-combinations.json').profiles;
 const FILES = { upk: 'BrgGame/CookedPCConsole/BrgGame.upk', exe: 'Binaries/Win64/BrgGame-Steam.exe' };
 const keys = Object.keys(FILES);
@@ -22,6 +23,12 @@ const readPair = game => sharedLayers.active(game)?sharedLayers.view(game,stage=
 const hashes = pair => Object.fromEntries(keys.map(k => [k, patch.sha(pair[k])]));
 const sameHashes = (a, b) => keys.every(k => a?.[k] === b?.[k]);
 function buildPair(pair) {
+  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671&&patch.sha(pair.upk)!=='02a5bb5286b2d05fa276443b2334220485ef290ceb3fa573b5138d847cbc391e'&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
+    const upk=ownedFunctions.set(pair.upk,'m2g','BrgGame.upk','on');
+    ownedFunctions.verifyTransition(pair.upk,upk,'m2g','BrgGame.upk');
+    ownedFunctions.verifyOthers(pair.upk,upk,'m2g','BrgGame.upk');
+    return {upk,exe:patch.linkExecutable(pair.exe,pair.upk,upk)};
+  }
   if(knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))){
     patch.linkExecutable(pair.exe,pair.upk,pair.upk);return pair;
   }
@@ -29,6 +36,12 @@ function buildPair(pair) {
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
 }
 function removePatchPair(pair) {
+  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
+    const upk=ownedFunctions.set(pair.upk,'m2g','BrgGame.upk','off');
+    ownedFunctions.verifyTransition(pair.upk,upk,'m2g','BrgGame.upk');
+    ownedFunctions.verifyOthers(pair.upk,upk,'m2g','BrgGame.upk');
+    return {upk,exe:patch.linkExecutable(pair.exe,pair.upk,upk)};
+  }
   if (embedded.identify(pair.upk)) {
     const upk = embedded.set(pair.upk, false);
     return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
@@ -47,6 +60,9 @@ function inspectStatus(pair, backupRecords = []) {
   // A known UPK still needs a valid two-entry EXE manifest link.
   patch.linkExecutable(pair.exe, pair.upk, pair.upk);
   const current = hashes(pair);
+  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671){
+    return {applied:ownedFunctions.inspect(pair.upk,'m2g','BrgGame.upk')==='on',exactBackup:false,combination:null};
+  }
   const matchingBackup = backupRecords.some(({ record }) => record.state !== 'restored' && record.operation !== 'remove' && sameHashes(record.after, current));
   const newer = embedded.identify(pair.upk);
   if (newer) return { applied: newer.enabled, exactBackup: matchingBackup, combination: newer.profile };
@@ -104,6 +120,10 @@ function apply(game, backupRoot, { running = gameRunning, builder = buildPair, o
   }
   if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const before = readPair(game), after = builder(before);
+  if(before.upk.length>0x25&&before.upk.readUInt32LE(0x21)===173671){
+    ownedFunctions.verifyTransition(before.upk,after.upk,'m2g','BrgGame.upk');
+    ownedFunctions.verifyOthers(before.upk,after.upk,'m2g','BrgGame.upk');
+  }
   if(sameHashes(hashes(before),hashes(after))){
     if(running()||!sameHashes(hashes(readPair(game)),hashes(before)))throw Error(t('동일 설정 확인 중 게임 실행/파일 변경 감지','Game launch/file change during no-op verification'));
     return null;
