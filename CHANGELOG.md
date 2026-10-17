@@ -1,5 +1,13 @@
 # 변경 기록
 
+## 1.5.4-rc.1 / TFC 1.2.2-rc.1 — 2026-10-17
+
+- Preserve eligible foreign OFF-layout SkillExchange.Tick UI bytes, avoiding false vending/91836 conflicts when preparing another mod.
+- Keep installed-preset, protected-byte, branch, size and unsafe length-changing merge conflicts blocked. TFC users must regenerate preparation folders.
+- Synchronize the standalone/TFC ownership readers across all four mod tools; keep game hooks, settings, save files and DB recipes unchanged.
+- Across four repositories: 475 regression tests passed, 119 optional cases skipped; 11 disposable-copy checks with the actual TFC engine passed. Reporter files, HUD binary and live gameplay remain unverified.
+
+
 ## 1.5.2-rc.1 / TFC 1.2.0-rc.1 — 2026-10-04
 
 - Preserve reviewed independent UPK instruction edits and Nico file-check OFF entries; reject owned-byte/native conflicts before writes.
