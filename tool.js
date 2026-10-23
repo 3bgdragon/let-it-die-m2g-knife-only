@@ -23,7 +23,7 @@ const readPair = game => sharedLayers.active(game)?sharedLayers.view(game,stage=
 const hashes = pair => Object.fromEntries(keys.map(k => [k, patch.sha(pair[k])]));
 const sameHashes = (a, b) => keys.every(k => a?.[k] === b?.[k]);
 function buildPair(pair) {
-  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671&&patch.sha(pair.upk)!=='02a5bb5286b2d05fa276443b2334220485ef290ceb3fa573b5138d847cbc391e'&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
+  if(pair.upk.length>0x25&&[173671,173715].includes(pair.upk.readUInt32LE(0x21))&&patch.sha(pair.upk)!=='02a5bb5286b2d05fa276443b2334220485ef290ceb3fa573b5138d847cbc391e'&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
     const upk=ownedFunctions.set(pair.upk,'m2g','BrgGame.upk','on');
     ownedFunctions.verifyTransition(pair.upk,upk,'m2g','BrgGame.upk');
     ownedFunctions.verifyOthers(pair.upk,upk,'m2g','BrgGame.upk');
@@ -36,7 +36,7 @@ function buildPair(pair) {
   return { upk, exe: patch.linkExecutable(pair.exe, pair.upk, upk) };
 }
 function removePatchPair(pair) {
-  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
+  if(pair.upk.length>0x25&&[173671,173715].includes(pair.upk.readUInt32LE(0x21))&&!knownCombinations.some(p=>p.sha256===patch.sha(pair.upk))&&!embedded.identify(pair.upk)){
     const upk=ownedFunctions.set(pair.upk,'m2g','BrgGame.upk','off');
     ownedFunctions.verifyTransition(pair.upk,upk,'m2g','BrgGame.upk');
     ownedFunctions.verifyOthers(pair.upk,upk,'m2g','BrgGame.upk');
@@ -60,7 +60,7 @@ function inspectStatus(pair, backupRecords = []) {
   // A known UPK still needs a valid two-entry EXE manifest link.
   patch.linkExecutable(pair.exe, pair.upk, pair.upk);
   const current = hashes(pair);
-  if(pair.upk.length>0x25&&pair.upk.readUInt32LE(0x21)===173671){
+  if(pair.upk.length>0x25&&[173671,173715].includes(pair.upk.readUInt32LE(0x21))){
     return {applied:ownedFunctions.inspect(pair.upk,'m2g','BrgGame.upk')==='on',exactBackup:false,combination:null};
   }
   const matchingBackup = backupRecords.some(({ record }) => record.state !== 'restored' && record.operation !== 'remove' && sameHashes(record.after, current));
@@ -120,7 +120,7 @@ function apply(game, backupRoot, { running = gameRunning, builder = buildPair, o
   }
   if (running()) throw new Error(t('게임을 완전히 종료하세요.', 'Close the game completely.'));
   const before = readPair(game), after = builder(before);
-  if(before.upk.length>0x25&&before.upk.readUInt32LE(0x21)===173671){
+  if(before.upk.length>0x25&&[173671,173715].includes(before.upk.readUInt32LE(0x21))){
     ownedFunctions.verifyTransition(before.upk,after.upk,'m2g','BrgGame.upk');
     ownedFunctions.verifyOthers(before.upk,after.upk,'m2g','BrgGame.upk');
   }
